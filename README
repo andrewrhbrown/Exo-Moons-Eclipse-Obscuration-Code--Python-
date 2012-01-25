@@ -1,0 +1,11 @@
+# Version 1.005 of General N Body Geometric Eclipse Generator for planets and stars crossing the disc of an exostar.
+# Written by Andrew Brown, American Museum of Natural History, Columbia Univerity in the City of New York.
+# Please contact Andrew at brown@astro.columbia.edu with questions or comments.
+# This code may be freely reproduced, but the author asks that you leave this notice in all future versions.
+######################################################################################
+#************************************************************************************
+# Graphical code using 2D cartesian positions from an input file, to project the actual obscuration of the stellar disc, 
+# display this graphically and output a lightcurve by calculating intensity changes during transit.
+# Positions are scaled and a galilean transformation is undertaken, to allow executeion of graphical matrix method.
+# Requires two input files, of eclipseindexes of beginning and ending of transit, and positions from the nbody output.
+#************************************************************************************

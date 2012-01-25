@@ -1,11 +1,300 @@
+#! /usr/bin/env python
+#
+######################################################################################
 # Version 1.005 of General N Body Geometric Eclipse Generator for planets and stars crossing the disc of an exostar.
 # Written by Andrew Brown, American Museum of Natural History, Columbia Univerity in the City of New York.
 # Please contact Andrew at brown@astro.columbia.edu with questions or comments.
 # This code may be freely reproduced, but the author asks that you leave this notice in all future versions.
 ######################################################################################
 #************************************************************************************
-# Graphical code using 2D cartesian positions from an input file, to project the actual obscuration of the stellar disc, 
-# display this graphically and output a lightcurve by calculating intensity changes during transit.
+# Graphical code using 2D cartesian positions from an input file, to project the actual obscuration of the stellar disc, display this graphically and output a lightcurve by calculating intensity changes during transit.
 # Positions are scaled and a galilean transformation is undertaken, to allow executeion of graphical matrix method.
 # Requires two input files, of eclipseindexes of beginning and ending of transit, and positions from the nbody output.
 #************************************************************************************
+from math import *
+from numpy import *
+from pylab import *
+#import pdb # I mean, if you need a debugger...
+
+
+# We must first read in our data from the input files, and assign to lists.
+if len(sys.argv) != 3:
+   print ""
+   print "Usage: programscript.py <filename>"
+   print "Example: demo.py andrew.txt"
+   print ""
+   print "andrew.txt should be a text file with at least three columns of"
+   print "numbers."
+   sys.exit(2)
+
+# filename is now the string entered at the command line.
+filename = sys.argv[1]
+
+# Define a few empty lists that represent the columns of data (reads in eclipseindexes)
+start_ind = []
+end_ind = []
+# These lists are then populated by the input files.
+file = open(filename, 'r')
+for line in file:
+   if not line.startswith("#") and line.strip():
+       linelist = line.split()
+       start_ind.append(float(linelist[0]))
+       end_ind.append(float(linelist[1]))
+      
+file.close()
+
+# filename is now the string entered at the command line.
+filename = sys.argv[2]
+
+# Define a few empty lists that represent the columns of data 
+#Lists to put the initial positions in
+ind = []
+abind = []
+posx1 = []
+posx2 = []
+posx3 = []
+x1 = []
+x2 = []
+x3 = []
+#Lists to put the transformed data in
+tx1 = []
+tx2 = []
+tx3 = []
+#Lists to put the transformed and scaled data in
+stx1 = []
+stx2 = []
+stx3 = []
+
+file = open(filename, 'r')
+for line in file:
+   if not line.startswith("#") and line.strip():
+       linelist = line.split()
+       ind.append(float(linelist[0]))
+       abind.append(float(linelist[1]))
+       posx1.append(float(linelist[2]))
+       posx2.append(float(linelist[3]))
+       posx3.append(float(linelist[4]))
+
+file.close()
+
+
+##############################
+# Initial physical conditions#
+##############################
+
+# This code can deal with any configuration of star, planets and moons.
+# These settings must have been propogated through previous calculating scripts.
+
+G            = 6.67428e-11  # Gravitational constant [m^3/kg/s^2]
+mass_sun   = 1.98892e30   # solar mass [kg]
+mass_earth   = 5.9742e24   # mass of earth [kg]
+#mass_moon    = 7.346e22    # mass of the moon [kg]
+mass_luna    = 7.346e22    # mass of the moon [kg]
+mass_jupiter = 1.899e27  # mass of Jupiter [kg]
+mass_ganymede = 1.4819e23
+AU           = 1.49597870691e11  # Astronomical unit [m]
+
+yearsec = 3.1536e7
+radius_sun = 6.9550e8
+radius_earth = 6.3781e6
+radius_luna = 1.7374e6
+radius_jupiter = 7.1492e7
+radius_ganymede = 2.6341e6
+
+#SUN EARTH LUNA
+#1AU with moon at real pos
+a2 = AU
+a3 = 3.84403e8 #[m]
+mass_planet = mass_earth
+mass_moon = mass_luna
+radius_planet = radius_earth
+radius_moon = radius_luna
+'''
+#SUN EARTH LUNA
+#20 day orbit, moon at 0.1 hr
+a2 = 21580159301.2
+a3 = 147338681.097
+mass_planet = mass_earth
+mass_moon = mass_luna
+'''
+'''
+#SUN JUPITER EARTH
+a3 = 5.14264828347e9
+mass_planet = mass_jupiter
+mass_moon = mass_earth
+'''
+'''
+#SUN JUPITER GANYMEDE
+#20 day orbit
+a2 = 21580159301.2
+a3 = 147338681.097
+mass_planet = mass_jupiter
+mass_moon = mass_ganymede
+radius_planet = radius_jupiter
+radius_moon = radius_ganymede
+'''
+length1 = len(ind)
+length2 = len(start_ind)
+
+for i in range(length1):
+   ind[i] = int(ind[i])
+   abind[i] = int(abind[i])
+
+for i in range(length2):
+   start_ind[i] = int(start_ind[i])
+   end_ind[i] = int(end_ind[i]+2)
+
+# This solution is graphical, and creates a matrix of values.
+# It is crucial that this matrix not overrun the maximum for a python
+# matrix. Because of this, the total size must be scaled not only for maximum size,
+# but to make sure the moon (as the smallest element) occupies at least one array element.
+
+##############################
+#           SCALING          #
+##############################
+
+scaled_moon_radius = 3.0   
+
+scalefactor = radius_moon/scaled_moon_radius #This ensures that the moon occupies one square on the grid
+
+radius_planet = radius_planet/scalefactor
+
+radius_sun = radius_sun/scalefactor
+
+print 'Moon radius = ', scaled_moon_radius
+print 'Planet radius = ', radius_planet
+print 'Sun radius = ', radius_sun
+
+#Selection for the eclipse you want from the set, as each position file has multiple eclipses within it.
+ecl = 0
+for i in range(start_ind[ecl],end_ind[ecl]):
+   
+   x1.append(posx1[i])
+   x2.append(posx2[i])
+   x3.append(posx3[i])
+   #print '', i, posx1[i], posx2[i], posx3[i]
+   
+##############################
+#       TRANSFORMING         #
+##############################
+   
+#- we galilean transform the positions onto the beginning of our number line, dependent on which is the left most object. (Sometimes the moon trails the planet, and sometimes the reverse is true.)
+
+# APPLYING THE GALILEAN TRANSFORMATION
+length3 = len(x1)
+if x3[0] < x2[0]:
+   transform = abs(x3[0])#+0.0001
+   for i in range(length3):
+      tx1.append(x1[i] + transform)
+      tx2.append(x2[i] + transform)
+      tx3.append(x3[i] + transform)
+else:
+   transform = abs(x2[0])#+0.0001
+   for i in range(length3):
+      tx1.append(x1[i] + transform)
+      tx2.append(x2[i] + transform)
+      tx3.append(x3[i] + transform)
+
+#SCALING, AND CONVERTING TO INTEGER FOR MATRIX COMPATABILITY
+for i in range(length3):
+   stx1.append(int(tx1[i]/scalefactor))
+   stx2.append(int(tx2[i]/scalefactor))
+   stx3.append(int(tx3[i]/scalefactor))           
+
+
+if stx2[length3-1] > stx3[length3-1]:
+   xside = stx2[length3-1] + 1
+else:
+   xside = int(stx3[length3-1] + 1)
+
+yside = int(2* radius_sun)
+y1=[radius_sun]*length3
+b1 = zeros((yside, xside))
+
+##############################
+#       Matrix Method        #
+##############################
+
+# We run the first frame to allow a calculation of the initial unobscured star.
+# This is necessarily as the scaling is by necessity not a fixed value.
+for i in range(xside):
+      for j in range(yside):
+    
+         if (sqrt(abs((stx1[0])-i)**2+abs((y1[0])-j)**2)) < radius_sun:
+            b1[j,i] = 1
+
+totalobs = sum(b1)
+print 'totalobs', totalobs
+#totalobs 1132653.0 full scale
+#totalobs for small cut :13211.0
+
+
+yside = int(8 * radius_planet)
+y1=[4*radius_planet]*length3
+a1 = zeros((yside, xside))
+c1 = zeros((yside, xside))
+c=0
+d=0
+e=0
+
+#One frame to get selection obscured
+for i in range(xside):
+      for j in range(yside):
+    
+         if (sqrt(abs((stx1[0])-i)**2+abs((y1[0])-j)**2)) < radius_sun:
+            c1[j,i] = 1
+
+selobs = sum(c1)
+print 'selobs', selobs
+percentinview = selobs/totalobs*100
+perview = "%.2f" % percentinview
+print 'perview', perview
+
+print 'percentage in view', percentinview
+print 'expected maximum eclipse', (((pi*radius_planet**2)+(pi*scaled_moon_radius**2))/(pi*radius_sun**2))*100
+
+
+#This is the total array calculation, which allows the generation of a lightcurve and the frames of the
+# eclipse movie
+#print 'This is the array', a1
+for k in range(length3):
+   print '# frames remaining: ', length3-k
+   #print 'k', k
+   
+   for i in range(xside):
+      for j in range(yside):
+    
+         if (sqrt(abs((stx1[k])-i)**2+abs((y1[k])-j)**2)) < radius_sun:
+            a1[j,i] = 1
+            
+            
+            if a1[j,i] == 1:
+               if (sqrt(abs((stx2[k])-i)**2+abs((y1[k])-j)**2)) < radius_planet:
+                  a1[j,i] = 0
+
+            if a1[j,i] == 1:
+               if (sqrt(abs((stx3[k])-i)**2+abs((y1[k])-j)**2)) < scaled_moon_radius:
+                  a1[j,i] = 0
+                  
+   e = sum(a1)
+   #print 'e', e
+
+# Obscuration % is saved here
+   light="%.4f" % ((((selobs-e))/totalobs)*100)
+
+# Frames showing the transformed objects are saved here. 
+   fig = plt.figure()
+   ax = fig.add_subplot(111)
+   ax.imshow(a1, cmap=cm.bone, interpolation='nearest')
+   xlabel('Eclipse % of total stellar disc: '+str(light))
+   title('Selection of stellar disc during eclipse,' +str(perview)+ '% in view')
+   plt.savefig('advance'+str(k)+'.png')
+
+
+
+
+
+
+
+
+
